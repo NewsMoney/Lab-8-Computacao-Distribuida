@@ -1,0 +1,101 @@
+name: Biblioteca gRPC Testes
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  grpc-tests:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout do Projeto
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Compilar Projeto
+        run: mvn clean package -DskipTests
+
+      - name: Iniciar Servidor gRPC
+        run: |
+          nohup mvn exec:java \
+          -Dexec.mainClass="br.mackenzie.biblioteca.server.ServidorBiblioteca" \
+          > servidor.log 2>&1 &
+          sleep 15
+
+      - name: Executar Cliente
+        run: |
+          mvn exec:java \
+          -Dexec.mainClass="br.mackenzie.biblioteca.client.ClienteBiblioteca" \
+          | tee cliente.log
+
+      - name: Mostrar Log do Cliente
+        run: cat cliente.log
+
+      - name: Mostrar Log do Servidor
+        run: cat servidor.log
+
+      - name: Teste 1 - Cadastro de Livros
+        run: |
+          grep -q "ID: 1" cliente.log
+          grep -q "ID: 2" cliente.log
+          grep -q "ID: 3" cliente.log
+          echo "✓ Cadastro de livros aprovado"
+
+      - name: Teste 2 - ISBN Duplicado
+        run: |
+          grep -q "ALREADY_EXISTS" cliente.log
+          echo "✓ ISBN duplicado aprovado"
+
+      - name: Teste 3 - Listagem por Autor
+        run: |
+          grep -q "Clean Code" cliente.log
+          grep -q "Clean Architecture" cliente.log
+          echo "✓ Busca por autor aprovada"
+
+      - name: Teste 4 - Empréstimos
+        run: |
+          grep -q "Total: 5" cliente.log
+          echo "✓ Empréstimos aprovados"
+
+      - name: Teste 5 - Chat Bibliotecário
+        run: |
+          grep -q "Effective Java" cliente.log
+          grep -q "Introduction to Algorithms" cliente.log
+          grep -q "Artificial Intelligence: A Modern Approach" cliente.log
+          echo "✓ Chat aprovado"
+
+      - name: Resumo dos Testes
+        run: |
+          echo "==================================="
+          echo "TODOS OS TESTES PASSARAM"
+          echo "==================================="
+          echo "✓ Cadastro de Livros"
+          echo "✓ ISBN Duplicado"
+          echo "✓ Busca por Autor"
+          echo "✓ Empréstimos"
+          echo "✓ Chat Bibliotecário"
+          echo "==================================="
+
+      - name: Salvar Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-biblioteca
+          path: |
+            cliente.log
+            servidor.log
